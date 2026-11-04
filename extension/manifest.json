@@ -1,0 +1,28 @@
+{
+  "manifest_version": 3,
+  "name": "Adaptive Dark Mode",
+  "version": "0.1.0",
+  "description": "Darkens light websites that don't support dark mode, preserving hue and contrast. A port of Safari's Adaptive Dark Mode.",
+  "permissions": ["storage"],
+  "host_permissions": ["<all_urls>"],
+  "background": {
+    "service_worker": "background.js",
+    "scripts": ["background.js"]
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["lib/color.js", "lib/engine.js", "content.js"],
+      "run_at": "document_start",
+      "all_frames": true,
+      "match_about_blank": true
+    }
+  ],
+  "action": {
+    "default_title": "Adaptive Dark Mode",
+    "default_popup": "popup.html"
+  },
+  "browser_specific_settings": {
+    "gecko": { "id": "adaptive-dark@sevki.io", "strict_min_version": "121.0" }
+  }
+}

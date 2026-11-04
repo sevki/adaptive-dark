@@ -1,0 +1,11 @@
+{
+  "name": "adaptive-dark",
+  "version": "0.1.0",
+  "description": "A port of Safari's Adaptive Dark Mode: darkens light web pages that don't support dark mode, preserving hue and contrast.",
+  "main": "src/engine.js",
+  "files": ["src"],
+  "scripts": {
+    "build": "node scripts/build-extension.js",
+    "test": "node --test test/*.test.js"
+  }
+}
