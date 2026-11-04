@@ -89,8 +89,10 @@
 <script src="../src/engine.js"></script>
 <script>
   // In the demo, follow the OS appearance like Safari does. Append ?force to
-  // transform even in light appearance.
-  if (location.search.includes('force')) {
+  // transform even in light appearance, or ?ext to leave it to the extension.
+  if (location.search.includes('ext')) {
+    // The installed extension does the work.
+  } else if (location.search.includes('force')) {
     window.adm = AdaptiveDark.create(document);
     addEventListener('DOMContentLoaded', () => adm.enable({ force: true }));
     if (document.readyState !== 'loading') adm.enable({ force: true });

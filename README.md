@@ -5,7 +5,7 @@ A port of Safari's [Adaptive Dark Mode](https://webkit.org/blog/18541/introducin
 It comes in two forms:
 
 - **`src/`**: a dependency-free JavaScript engine you can drop into any page (`AdaptiveDark.auto(document)`).
-- **`extension/`**: a Manifest V3 extension for Chrome, Edge and Firefox (121+) that runs the engine on every site.
+- **`extension/`**: a Manifest V3 extension that runs the engine on every site. It builds for **Firefox** (desktop 140+ and Android 142+) and for Chrome/Edge.
 
 ## What it does (following the WebKit article)
 
@@ -58,24 +58,76 @@ The engine never edits the page's own stylesheets or inline styles. Instead it c
 
 `src/color.js` also works on its own (CommonJS or global `AdaptiveDarkColor`). It provides color parsing, OKLab/OKLCH conversion, WCAG contrast, `transformColor(color, role)` and `rewriteValue(cssValue, role, ctx)`.
 
-## Installing the extension
+## Building the extensions
 
 ```sh
-npm run build     # copies src/ into extension/lib/
+npm ci
+npm run build             # dist/firefox and dist/chrome
+npm run package:firefox   # web-ext-artifacts/adaptive-dark-firefox-<version>.zip (unsigned)
+npm run package:chrome    # web-ext-artifacts/adaptive-dark-chrome-<version>.zip
 ```
 
-- **Chrome / Edge**: open `chrome://extensions`, turn on Developer mode, choose *Load unpacked* and select `extension/`.
-- **Firefox**: open `about:debugging#/runtime/this-firefox`, choose *Load Temporary Add-on* and select `extension/manifest.json`.
+`extension/` holds the shared sources and a base manifest. `scripts/build-extension.js` copies the engine into each target and writes that browser's manifest:
 
-The extension only runs while your browser or OS appearance is dark. Its popup shows why a page was or wasn't darkened, and has a per-site *Automatic / Always / Never* setting plus a global switch.
+- **Firefox**: background `scripts`, a gecko id (`adaptive-dark@sevki.io`) and `data_collection_permissions: none`, which addons.mozilla.org requires.
+- **Chrome**: a background service worker.
+
+The build fails if `extension/manifest.json` and `package.json` have different versions.
+
+### Installing
+
+- **Firefox**: open `about:debugging#/runtime/this-firefox`, choose *Load Temporary Add-on* and select `dist/firefox/manifest.json`. Alternatively, run `npx web-ext run --source-dir dist/firefox`. A permanent install needs the signed `.xpi` from a release (see below).
+- **Chrome / Edge**: open `chrome://extensions`, turn on Developer mode, choose *Load unpacked* and select `dist/chrome`.
+
+The extension only runs while your browser or OS appearance is dark. Its popup shows why a page was or wasn't darkened. It has a per-site *Automatic / Always / Never* setting and a global switch. Firefox lets users withhold or revoke an MV3 extension's website access, so the popup offers an *Allow on all websites* button when access is missing.
+
+### Firefox specifics
+
+Firefox content scripts run in a sandbox that sees the page through Xray wrappers. The engine copes with three differences:
+
+- From that sandbox, assigning to `document.adoptedStyleSheets` doesn't work (and in Firefox 140 it can't even be iterated). The engine detects this and writes its CSS to a `<style>` element that it keeps last in the document.
+- Window methods are always called on the window object, never as detached functions.
+- Reading the pixels of a page's `<img>` taints the content script's canvas. Logos are therefore decoded again from their `data:` URL or from bytes fetched by the background script.
 
 ## Demo and tests
 
 ```sh
-python3 -m http.server   # then open http://localhost:8000/demo/
-                         # (add ?force to see it in light appearance too)
-npm test                 # unit tests + Chromium end-to-end tests (uses Playwright if installed)
+python3 -m http.server     # then open http://localhost:8000/demo/
+                           # (?force to see it in light appearance too)
+npm test                   # everything available locally
+npm run test:unit          # color math (Node only)
+npm run test:engine        # engine in Chromium; PW_BROWSER=firefox for Playwright's Firefox
+FIREFOX_BIN=/path/to/firefox npm run test:firefox
+                           # builds dist/firefox, installs it into real Firefox over
+                           # WebDriver BiDi (puppeteer-core, no geckodriver) and
+                           # checks pages served from a local server, including a
+                           # cross-origin stylesheet fetched by the background script
 ```
+
+## CI and releases
+
+`.github/workflows/ci.yml` runs on every push to `main` and on every pull request:
+
+| Job | What it checks |
+| --- | --- |
+| Lint | `node --check` on all JS; `web-ext lint` on the Firefox build with warnings treated as errors |
+| Unit tests | Color math |
+| Engine (chromium, firefox) | Engine end-to-end in both browsers via Playwright |
+| Firefox extension (140.0esr, latest-esr, latest) | The built add-on installed into real Firefox: the minimum supported version, current ESR and release |
+| Package | Builds the Firefox and Chrome zips and uploads them as a workflow artifact |
+
+`.github/workflows/release.yml` runs when a `v*` tag is pushed (for example `v0.2.0`; it must match `package.json` and `extension/manifest.json`). It:
+
+1. runs all the tests;
+2. signs the Firefox add-on with addons.mozilla.org via `web-ext sign`;
+3. creates a GitHub release with the signed `.xpi` and the Chrome zip.
+
+Setup:
+
+- Add repository secrets **`AMO_JWT_ISSUER`** and **`AMO_JWT_SECRET`**, using the API key from <https://addons.mozilla.org/developers/addon/api/key/>.
+- The signing channel defaults to `unlisted`: AMO signs the add-on for self-distribution, and the `.xpi` can be installed permanently from the release. To submit to the public AMO listing, set the repository variable **`AMO_CHANNEL=listed`** or choose `listed` when running the workflow manually. That path uses `amo-metadata.json`. AMO asks for a license for listed add-ons, so add one there (and a `LICENSE` file) first.
+
+Dependabot keeps the npm dev dependencies and GitHub Actions up to date.
 
 ## For site authors
 

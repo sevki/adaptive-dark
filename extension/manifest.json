@@ -5,10 +5,6 @@
   "description": "Darkens light websites that don't support dark mode, preserving hue and contrast. A port of Safari's Adaptive Dark Mode.",
   "permissions": ["storage"],
   "host_permissions": ["<all_urls>"],
-  "background": {
-    "service_worker": "background.js",
-    "scripts": ["background.js"]
-  },
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
@@ -20,9 +16,8 @@
   ],
   "action": {
     "default_title": "Adaptive Dark Mode",
-    "default_popup": "popup.html"
+    "default_popup": "popup.html",
+    "default_icon": { "16": "icons/icon-16.png", "32": "icons/icon-32.png" }
   },
-  "browser_specific_settings": {
-    "gecko": { "id": "adaptive-dark@sevki.io", "strict_min_version": "121.0" }
-  }
+  "icons": { "48": "icons/icon-48.png", "96": "icons/icon-96.png", "128": "icons/icon-128.png" }
 }

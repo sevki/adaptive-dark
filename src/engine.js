@@ -111,7 +111,10 @@
         // Upper bound of elements examined per contrast pass.
         maxElements: 20000,
         observe: true,
+        // Force the <style> element output instead of adoptedStyleSheets.
+        styleElement: false,
       }, options || {});
+      if (this.options.styleElement) this.adoptOK = false;
       this.colorOptions = Object.assign({}, C.DEFAULT_OPTIONS, this.options.color || {});
       this.enabled = false;
       this.sheet = null;
@@ -239,7 +242,6 @@
       if (analysis.decision !== 'transform' && !opts.force) return analysis;
 
       this.enabled = true;
-      this.sheet = new this.win.CSSStyleSheet();
       this.markOptOuts();
       this.rebuildSheets();
       this.scanSubtree(this.doc.documentElement);
@@ -256,7 +258,11 @@
       if (this.pollTimer) clearInterval(this.pollTimer);
       this.observer = null; this.pollTimer = null;
       const doc = this.doc;
-      doc.adoptedStyleSheets = doc.adoptedStyleSheets.filter((s) => s !== this.sheet);
+      if (this.sheet) {
+        try { doc.adoptedStyleSheets = doc.adoptedStyleSheets.filter((s) => s !== this.sheet); } catch (e) { /* ignore */ }
+      }
+      if (this.styleEl) this.styleEl.remove();
+      this.styleEl = null;
       for (const el of this.touched) { el.removeAttribute(ATTR); el.removeAttribute(OPTOUT_ATTR); }
       this.touched.clear();
       for (const m of [this.inlineRules, this.optoutRules, this.svgRules, this.imageRules, this.contrastRules]) m.clear();
@@ -353,8 +359,14 @@
     collectSheets() {
       const doc = this.doc;
       const list = [];
-      for (const s of Array.from(doc.styleSheets)) list.push(s);
-      for (const s of doc.adoptedStyleSheets || []) if (s !== this.sheet) list.push(s);
+      const own = this.styleEl && this.styleEl.sheet;
+      for (const s of Array.from(doc.styleSheets)) if (s !== own) list.push(s);
+      // Read by index: from a Firefox 140 content script the Xray-wrapped
+      // array isn't iterable.
+      try {
+        const adopted = doc.adoptedStyleSheets;
+        for (let i = 0; adopted && i < adopted.length; i++) if (adopted[i] !== this.sheet) list.push(adopted[i]);
+      } catch (e) { /* ignore */ }
       return list;
     }
 
@@ -564,18 +576,53 @@
       for (const m of [this.inlineRules, this.svgRules, this.imageRules, this.optoutRules, this.contrastRules]) {
         for (const css of m.values()) parts.push(css);
       }
-      this.sheet.replaceSync(parts.join('\n'));
+      this.output(parts.join('\n'));
+    }
+
+    /**
+     * Writes the generated CSS. Prefers one adopted stylesheet (invisible in
+     * document.styleSheets, always last in the cascade). Falls back to a
+     * <style> element kept at the end of the document where adopting fails,
+     * e.g. from a Firefox content script, whose sandboxed arrays and
+     * constructed sheets can't be assigned to the page's adoptedStyleSheets.
+     */
+    output(css) {
       const doc = this.doc;
-      if (!doc.adoptedStyleSheets.includes(this.sheet)) {
-        doc.adoptedStyleSheets = [...doc.adoptedStyleSheets, this.sheet];
+      if (!this.styleEl && this.adoptOK !== false) {
+        try {
+          if (!this.sheet) this.sheet = new this.win.CSSStyleSheet();
+          this.sheet.replaceSync(css);
+          if (!doc.adoptedStyleSheets.includes(this.sheet)) {
+            doc.adoptedStyleSheets = [...doc.adoptedStyleSheets, this.sheet];
+          }
+          if (doc.adoptedStyleSheets.includes(this.sheet)) { this.adoptOK = true; return; }
+        } catch (e) { /* fall through */ }
+        this.adoptOK = false;
+        this.sheet = null;
       }
+      if (!this.styleEl) {
+        this.styleEl = doc.createElement('style');
+        this.styleEl.setAttribute('data-adaptive-dark', '');
+      }
+      if (this.styleEl.textContent !== css) this.styleEl.textContent = css;
+      this.keepStyleLast();
+    }
+
+    keepStyleLast() {
+      const el = this.styleEl;
+      if (!el) return;
+      const parent = this.doc.body || this.doc.documentElement;
+      if (el.parentNode !== parent || el.nextElementSibling) parent.appendChild(el);
     }
 
     scheduleRender() {
       if (this.pendingRender) return;
       this.pendingRender = true;
-      const raf = this.win.requestAnimationFrame || ((f) => setTimeout(f, 16));
-      raf(() => { this.pendingRender = false; this.render(); });
+      const done = () => { this.pendingRender = false; this.render(); };
+      // Call it as a method: Firefox content scripts see `window` through an
+      // Xray wrapper, and an unbound requestAnimationFrame throws there.
+      if (typeof this.win.requestAnimationFrame === 'function') this.win.requestAnimationFrame(done);
+      else setTimeout(done, 16);
     }
 
     scheduleRebuild() {
@@ -626,8 +673,10 @@
       // SVG/image passes need transformed styles; run after render.
       Promise.resolve().then(() => {
         if (!this.enabled) return;
-        for (const svg of (rootEl.tagName === 'svg' ? [rootEl] : rootEl.querySelectorAll('svg'))) this.processSVG(svg);
-        for (const img of (rootEl.tagName === 'IMG' ? [rootEl] : rootEl.querySelectorAll('img'))) this.processImage(img);
+        // One odd element must not stop the rest of the pass.
+        const each = (list, fn) => { for (const el of list) { try { fn.call(this, el); } catch (e) { /* skip */ } } };
+        each(rootEl.tagName === 'svg' ? [rootEl] : rootEl.querySelectorAll('svg'), this.processSVG);
+        each(rootEl.tagName === 'IMG' ? [rootEl] : rootEl.querySelectorAll('img'), this.processImage);
       });
     }
 
@@ -686,19 +735,25 @@
         this.imageVerdicts.set(src, verdict);
         return apply(verdict);
       }
-      // Tainted canvas (cross-origin). Ask the fetch hook for the bytes.
-      if (!this.options.fetchImage || /^data:/.test(src)) return;
+      // Pixels unreadable: a cross-origin image, or any image when running as
+      // a Firefox content script (the page's <img> taints the script's
+      // canvas). Re-decode the bytes in our own scope: data: URLs directly,
+      // anything else through the fetch hook.
       this.imageVerdicts.set(src, false);
-      Promise.resolve(this.options.fetchImage(src)).then((dataURL) => {
+      const decode = (dataURL) => {
         if (!dataURL) return;
-        const probe = new this.win.Image();
+        const Img = typeof Image === 'function' ? Image : this.win.Image;
+        const probe = new Img();
         probe.onload = () => {
-          const v = this.classifyImage(probe, img.naturalWidth, img.naturalHeight);
-          this.imageVerdicts.set(src, !!v);
-          apply(!!v);
+          const v = !!this.classifyImage(probe, img.naturalWidth, img.naturalHeight);
+          this.imageVerdicts.set(src, v);
+          apply(v);
         };
         probe.src = dataURL;
-      }).catch(() => {});
+      };
+      if (/^data:/.test(src)) return decode(src);
+      if (!this.options.fetchImage) return;
+      Promise.resolve(this.options.fetchImage(src)).then(decode).catch(() => {});
     }
 
     /**
@@ -827,8 +882,10 @@
             continue;
           }
           const isSheetNode = (n) => n.nodeType === 1 && (n.tagName === 'STYLE' || (n.tagName === 'LINK' && /stylesheet/i.test(n.rel)));
+          if (r.target === this.styleEl) continue;
           if (r.target.nodeType === 1 && r.target.tagName === 'STYLE') rebuild = true;
           for (const n of r.addedNodes) {
+            if (n === this.styleEl) continue;
             if (isSheetNode(n)) {
               rebuild = true;
               if (n.tagName === 'LINK') n.addEventListener('load', () => this.scheduleRebuild(), { once: true });
@@ -837,8 +894,9 @@
               this.scanSubtree(n); render = true; added.add(n);
             } else if (n.nodeType === 3 && n.parentElement) added.add(n.parentElement);
           }
-          for (const n of r.removedNodes) if (isSheetNode(n)) rebuild = true;
+          for (const n of r.removedNodes) if (n !== this.styleEl && isSheetNode(n)) rebuild = true;
         }
+        if (this.styleEl && (!this.styleEl.isConnected || this.styleEl.nextElementSibling)) this.keepStyleLast();
         if (rebuild) this.scheduleRebuild();
         else if (render) this.scheduleRender();
         for (const el of added) this.queueContrast(el);

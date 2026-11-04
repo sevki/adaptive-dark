@@ -1,11 +1,13 @@
-// End-to-end tests in Chromium via Playwright (pre-installed or devDependency).
+// End-to-end tests of the engine in a real browser via Playwright.
+// PW_BROWSER=chromium (default) | firefox | webkit
 const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('fs');
 const path = require('path');
 
-let chromium;
-try { ({ chromium } = require('playwright')); } catch (e) { /* skipped below */ }
+const BROWSER = process.env.PW_BROWSER || 'chromium';
+let launcher;
+try { launcher = require('playwright')[BROWSER]; } catch (e) { /* skipped below */ }
 
 const ROOT = path.join(__dirname, '..');
 const SRC = {
@@ -15,7 +17,7 @@ const SRC = {
 const SCRIPTS = '<script src="/src/color.js"></script><script src="/src/engine.js"></script>';
 
 let browser;
-test.before(async () => { if (chromium) browser = await chromium.launch(); });
+test.before(async () => { if (launcher) browser = await launcher.launch(); });
 test.after(async () => { if (browser) await browser.close(); });
 
 /** Opens `html` at https://site.test/ with extra routes {path: [type, body]}. */
@@ -43,7 +45,7 @@ const helpers = `
   window.cs = (sel) => getComputedStyle(document.querySelector(sel));
 `;
 
-const skip = !chromium && 'playwright not installed';
+const skip = !launcher && 'playwright not installed';
 
 test('demo page: transforms a light page following the article', { skip }, async () => {
   const page = await open(null, {}, { file: path.join(ROOT, 'demo/index.html') });
@@ -182,5 +184,29 @@ test('disable() restores the page', { skip }, async () => {
   });
   assert.notStrictEqual(r[0], 'rgb(255, 255, 255)');
   assert.deepStrictEqual(r.slice(1), ['rgb(255, 255, 255)', 0, 0]);
+  await page.close();
+});
+
+test('falls back to a <style> element where adoptedStyleSheets is unavailable', { skip }, async () => {
+  const page = await open(`<!doctype html><style>.a{background:#fff;color:#111}</style><body><div class=a>a</div>${SCRIPTS}`);
+  await page.addScriptTag({ content: helpers });
+  const r = await page.evaluate(async () => {
+    const e = AdaptiveDark.create(document, { styleElement: true }); e.enable({ force: true });
+    // Later page styles must not win over ours: we keep the element last.
+    const st = document.createElement('style'); st.textContent = '.b{background:#fafafa}';
+    document.body.append(st);
+    const b = document.createElement('div'); b.className = 'b'; b.textContent = 'b'; document.body.append(b);
+    await new Promise((res) => setTimeout(res, 500));
+    const own = document.querySelector('style[data-adaptive-dark]');
+    const out = { adopted: document.adoptedStyleSheets.length, last: document.body.lastElementChild === own,
+                  a: L(cs('.a').backgroundColor), b: L(cs('.b').backgroundColor) };
+    e.disable();
+    out.removed = !document.querySelector('style[data-adaptive-dark]');
+    return out;
+  });
+  assert.strictEqual(r.adopted, 0);
+  assert.ok(r.last, 'own <style> kept last');
+  assert.ok(r.a < 0.3 && r.b < 0.35, JSON.stringify(r));
+  assert.ok(r.removed);
   await page.close();
 });

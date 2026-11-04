@@ -12,12 +12,19 @@
   #status { color: var(--muted); margin: 0; }
   label { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
   select { font: inherit; }
+  #access[hidden] { display: none; }
+  #access p { margin: 0 0 8px; }
+  #grant { font: inherit; padding: 4px 10px; }
 </style>
 </head>
 <body>
   <section>
     <h1>Adaptive Dark Mode</h1>
     <p id="status">…</p>
+  </section>
+  <section id="access" hidden>
+    <p>Adaptive Dark Mode needs access to websites to darken them.</p>
+    <button id="grant">Allow on all websites</button>
   </section>
   <section>
     <label>On <span id="host">this site</span>

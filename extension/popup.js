@@ -12,7 +12,26 @@ const MESSAGES = {
   waiting: 'Waiting for the page to load…',
 };
 
+const ALL_SITES = { origins: ['<all_urls>'] };
+
+// Firefox treats MV3 host permissions as optional: the user may not have
+// granted them (or revoked them later). Offer to request them; the request
+// must come from a click.
+function checkAccess() {
+  if (!api.permissions) return;
+  api.permissions.contains(ALL_SITES, (granted) => {
+    $('access').hidden = !!granted;
+  });
+}
+
 async function main() {
+  checkAccess();
+  $('grant').addEventListener('click', () => {
+    api.permissions.request(ALL_SITES, (granted) => {
+      if (granted) $('access').hidden = true;
+    });
+  });
+
   const [tab] = await new Promise((r) => api.tabs.query({ active: true, currentWindow: true }, r));
   const settings = await new Promise((r) => api.storage.sync.get({ enabled: true, sites: {} }, r));
   $('enabled').checked = settings.enabled;
