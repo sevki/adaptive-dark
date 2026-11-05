@@ -7,6 +7,15 @@ It comes in two forms:
 - **`src/`**: a dependency-free JavaScript engine you can drop into any page (`AdaptiveDark.auto(document)`).
 - **`extension/`**: a Manifest V3 extension that runs the engine on every site. It builds for **Firefox** (desktop 140+ and Android 142+) and for Chrome/Edge.
 
+## Screenshots
+
+The demo page before and after Adaptive Dark Mode. The dark view uses `?force`.
+
+<p>
+  <img src="screenshots/demo-light.png" alt="The demo page in its original light appearance" width="49%">
+  <img src="screenshots/demo-dark.png" alt="The demo page transformed into Adaptive Dark Mode" width="49%">
+</p>
+
 ## What it does (following the WebKit article)
 
 | Safari behavior | This port |
