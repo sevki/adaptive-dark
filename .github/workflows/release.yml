@@ -107,7 +107,7 @@ jobs:
           gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --generate-notes \
             web-ext-artifacts/*.xpi web-ext-artifacts/*.zip
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: release-${{ github.ref_name }}
           path: web-ext-artifacts/*
