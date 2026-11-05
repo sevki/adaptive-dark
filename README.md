@@ -9,7 +9,7 @@ It comes in two forms:
 
 ## Screenshots
 
-The demo page before and after Adaptive Dark Mode. The dark view uses `?force`.
+The demo page in a light appearance (left) and in a dark appearance with Adaptive Dark Mode (right).
 
 <p>
   <img src="screenshots/demo-light.png" alt="The demo page in its original light appearance" width="49%">
