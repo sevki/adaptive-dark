@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Adaptive Dark Mode demo</title>
+<!-- Note: this page deliberately does NOT declare color-scheme, so it is a
+     candidate for Adaptive Dark Mode. -->
+<style>
+  :root { --brand: #0a66c2; --panel: #f4f6f8; --ink: #1d1d1f; --muted: #6e6e73; --alias: var(--brand); }
+  body { margin: 0; font: 16px/1.5 system-ui, sans-serif; background: #fff; color: var(--ink); }
+  header { background: linear-gradient(180deg, #ffffff, #eef2f7); border-bottom: 1px solid #d2d2d7; padding: 16px 24px; display: flex; align-items: center; gap: 12px; }
+  header h1 { font-size: 20px; margin: 0; }
+  main { max-width: 760px; margin: 0 auto; padding: 24px; }
+  .panel { background: var(--panel); border: 1px solid #e5e5ea; border-radius: 12px; padding: 16px; margin: 16px 0; box-shadow: 0 2px 8px rgba(0,0,0,.08); }
+  .muted { color: var(--muted); }
+  a { color: var(--alias); }
+  .btn { display: inline-block; background: var(--brand); color: #fff; padding: 8px 14px; border-radius: 8px; text-decoration: none; }
+  .btn:hover { background: #004182; }
+  .btn-outline { background: #fff; color: #333; border: 1px solid #333; }
+  .badge { background: #ffe58f; color: #5c4400; padding: 2px 8px; border-radius: 999px; font-size: 13px; }
+  .low-contrast { color: #bbb; }
+  mark { background: #fff3a3; }
+  .menu { position: relative; display: inline-block; }
+  .menu ul { display: none; position: absolute; top: 100%; left: 0; background: #fff; border: 1px solid #ccc; list-style: none; margin: 0; padding: 4px 0; box-shadow: 0 6px 20px rgba(0,0,0,.15); }
+  .menu:hover ul { display: block; }
+  .menu li { padding: 4px 16px; }
+  .menu li:hover { background: #f0f0f0; }
+  .blend { mix-blend-mode: multiply; background: #ffd6d6; padding: 8px; }
+  .keep-light { color-scheme: light only; background: #fffbe6; color: #333; padding: 12px; border-radius: 8px; }
+  .own-dark { color-scheme: light dark; background: light-dark(#fff, #102030); color: light-dark(#000, #cde); padding: 12px; border-radius: 8px; }
+  canvas { border: 1px solid #ccc; }
+  table { border-collapse: collapse; width: 100%; }
+  td, th { border: 1px solid #ddd; padding: 6px 8px; text-align: left; }
+  tr:nth-child(even) td { background: #fafafa; }
+  @keyframes flash { from { background-color: #ffff00; } to { background-color: #ffffff; } }
+  .flash { animation: flash 2s infinite alternate; padding: 4px; }
+</style>
+</head>
+<body>
+<header>
+  <svg id="icon" width="28" height="28" viewBox="0 0 24 24" aria-hidden="true"><path fill="#111" d="M12 2 2 22h20z"/></svg>
+  <svg id="colorful" width="28" height="28" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="#ff9500"/><circle cx="12" cy="12" r="4" fill="#fff"/></svg>
+  <h1>Acme Journal</h1>
+  <img id="logo" alt="logo" width="96" height="32" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='96' height='32'%3E%3Ctext x='0' y='24' font-family='Arial' font-weight='bold' font-size='24'%3EACME%3C/text%3E%3C/svg%3E">
+</header>
+<main>
+  <p>Body text in <strong>near-black</strong>, a <a href="#">link using an aliased custom property</a>, and <mark>highlighted text</mark>.</p>
+  <p class="muted">Muted secondary text.</p>
+  <p class="low-contrast" id="low">This light-gray text had poor contrast to begin with.</p>
+
+  <div class="panel">
+    <h2>Panel</h2>
+    <p>Panels keep their separation from the page background. <span class="badge">New</span></p>
+    <a class="btn" href="#">Primary action</a>
+    <a class="btn btn-outline" href="#">Secondary</a>
+    <span class="menu"><button>Hover menu ▾</button><ul><li>Profile</li><li>Settings</li><li>Sign out</li></ul></span>
+  </div>
+
+  <div class="panel" style="background: #e8f4ff; border-color: #b6dcff;">
+    <p id="inline" style="color: #003366">Inline-styled panel with inline-styled text.</p>
+  </div>
+
+  <p class="blend">mix-blend-mode is disabled on transformed elements.</p>
+  <p class="flash">Keyframe animations with colors are transformed too.</p>
+
+  <table>
+    <tr><th>Feature</th><th>Status</th></tr>
+    <tr><td>Backgrounds</td><td>inverted</td></tr>
+    <tr><td>Text</td><td>inverted, 4.5:1</td></tr>
+    <tr><td>Gradients</td><td>inverted</td></tr>
+  </table>
+
+  <div class="keep-light" id="keep">This box uses <code>color-scheme: light only</code> and stays light.</div>
+  <p></p>
+  <div class="own-dark" id="own">This box uses <code>color-scheme: light dark</code> with <code>light-dark()</code>, so it styles its own dark mode.</div>
+
+  <p>Canvas content is left unchanged:</p>
+  <canvas id="cv" width="200" height="60"></canvas>
+  <p>Photos are left unchanged:</p>
+  <img id="photo" alt="gradient photo" width="200" height="60" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='60'%3E%3Cdefs%3E%3ClinearGradient id='g'%3E%3Cstop offset='0' stop-color='%23f80'/%3E%3Cstop offset='1' stop-color='%2308f'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='200' height='60' fill='url(%23g)'/%3E%3C/svg%3E">
+</main>
+<script>
+  const g = document.getElementById('cv').getContext('2d');
+  g.fillStyle = '#fff'; g.fillRect(0, 0, 200, 60);
+  g.fillStyle = '#000'; g.font = '20px sans-serif'; g.fillText('canvas', 10, 38);
+</script>
+<script src="../src/color.js"></script>
+<script src="../src/engine.js"></script>
+<script>
+  // In the demo, follow the OS appearance like Safari does. Append ?force to
+  // transform even in light appearance, or ?ext to leave it to the extension.
+  if (location.search.includes('ext')) {
+    // The installed extension does the work.
+  } else if (location.search.includes('force')) {
+    window.adm = AdaptiveDark.create(document);
+    addEventListener('DOMContentLoaded', () => adm.enable({ force: true }));
+    if (document.readyState !== 'loading') adm.enable({ force: true });
+  } else {
+    window.adm = AdaptiveDark.auto(document);
+  }
+</script>
+</body>
+</html>

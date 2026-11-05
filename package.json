@@ -1,0 +1,32 @@
+{
+  "name": "adaptive-dark",
+  "version": "0.1.0",
+  "description": "A port of Safari's Adaptive Dark Mode: darkens light web pages that don't support dark mode, preserving hue and contrast.",
+  "main": "src/engine.js",
+  "files": [
+    "src"
+  ],
+  "scripts": {
+    "build": "node scripts/build-extension.js",
+    "build:firefox": "node scripts/build-extension.js firefox",
+    "build:chrome": "node scripts/build-extension.js chrome",
+    "lint": "npm run lint:syntax && npm run lint:firefox",
+    "lint:syntax": "node scripts/check-syntax.js",
+    "lint:firefox": "npm run build:firefox && web-ext lint --source-dir dist/firefox --warnings-as-errors",
+    "test": "node --test test/*.test.js",
+    "test:unit": "node --test test/color.test.js",
+    "test:engine": "node --test test/browser.test.js",
+    "test:firefox": "npm run build:firefox && node --test test/firefox-extension.test.js",
+    "package:firefox": "npm run build:firefox && web-ext build --source-dir dist/firefox --artifacts-dir web-ext-artifacts --filename adaptive-dark-firefox-{version}.zip --overwrite-dest",
+    "package:chrome": "npm run build:chrome && node scripts/zip-dir.js dist/chrome web-ext-artifacts/adaptive-dark-chrome-$npm_package_version.zip",
+    "render-icons": "node scripts/render-icons.js"
+  },
+  "devDependencies": {
+    "playwright": "1.63.0",
+    "puppeteer-core": "25.16.0",
+    "web-ext": "10.8.0"
+  },
+  "engines": {
+    "node": ">=22.12"
+  }
+}
