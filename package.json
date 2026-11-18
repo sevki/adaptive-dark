@@ -22,8 +22,8 @@
     "render-icons": "node scripts/render-icons.js"
   },
   "devDependencies": {
-    "playwright": "1.63.0",
-    "puppeteer-core": "25.16.0",
+    "playwright": "1.65.1",
+    "puppeteer-core": "25.17.0",
     "web-ext": "10.8.0"
   },
   "engines": {
